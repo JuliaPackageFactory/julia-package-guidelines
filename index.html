@@ -1,0 +1,309 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Julia Package Development Guide</title>
+<meta name="description" content="How to develop, test, document, and release a Julia package. Pass ?package_name=Foo.jl&owner=you to render it for your package.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='9' r='6' fill='%23389826'/%3E%3Ccircle cx='9' cy='22' r='6' fill='%23cb3c33'/%3E%3Ccircle cx='23' cy='22' r='6' fill='%239558b2'/%3E%3C/svg%3E">
+<style>
+  :root {
+    --bg: #ffffff;
+    --fg: #1f2328;
+    --muted: #59636e;
+    --line: #d1d9e0;
+    --code-bg: #f6f8fa;
+    --accent: #9558b2;
+    --accent-fg: #ffffff;
+    --bar-bg: #fbfbfc;
+    --focus: #389826;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0f1115;
+      --fg: #e6edf3;
+      --muted: #9aa4af;
+      --line: #2b313a;
+      --code-bg: #171b22;
+      --accent: #b88ad1;
+      --accent-fg: #0f1115;
+      --bar-bg: #13161b;
+      --focus: #5fbf5a;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0f1115;
+    --fg: #e6edf3;
+    --muted: #9aa4af;
+    --line: #2b313a;
+    --code-bg: #171b22;
+    --accent: #b88ad1;
+    --accent-fg: #0f1115;
+    --bar-bg: #13161b;
+    --focus: #5fbf5a;
+  }
+
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; scroll-padding-top: 5rem; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font: 17px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", "Noto Sans", sans-serif;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  /* parameter bar */
+  .bar {
+    position: sticky; top: 0; z-index: 10;
+    background: var(--bar-bg);
+    border-bottom: 1px solid var(--line);
+  }
+  .bar form {
+    max-width: 52rem; margin: 0 auto; padding: .6rem 16px;
+    display: flex; flex-wrap: wrap; gap: .5rem .75rem; align-items: center;
+  }
+  .bar label { display: flex; align-items: center; gap: .4rem; font-size: .9rem; color: var(--muted); }
+  .bar input {
+    font: inherit; font-size: .95rem; color: var(--fg);
+    background: var(--bg); border: 1px solid var(--line); border-radius: 6px;
+    padding: .3rem .5rem; width: 11rem; max-width: 100%;
+  }
+  .bar input:focus { outline: 2px solid var(--focus); outline-offset: 1px; }
+  .bar button, .bar a.button {
+    font: inherit; font-size: .9rem; cursor: pointer; text-decoration: none;
+    border: 1px solid var(--line); border-radius: 6px; padding: .3rem .7rem;
+    background: var(--bg); color: var(--fg);
+  }
+  .bar button.primary { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+  .bar .spacer { flex: 1; }
+
+  /* content */
+  main { max-width: 52rem; margin: 0 auto; padding: 1.5rem 16px 5rem; overflow-wrap: anywhere; }
+  h1 { font-size: 2rem; line-height: 1.2; margin: .5rem 0 1rem; }
+  h2 { font-size: 1.45rem; margin: 2.4rem 0 .8rem; padding-bottom: .3rem; border-bottom: 1px solid var(--line); }
+  h3 { font-size: 1.12rem; margin: 1.8rem 0 .6rem; }
+  h1 a.anchor, h2 a.anchor, h3 a.anchor { color: inherit; text-decoration: none; }
+  h2 a.anchor:hover::after, h3 a.anchor:hover::after { content: " #"; color: var(--muted); }
+  a { color: var(--accent); }
+  p, ul, ol, table { margin: 0 0 1rem; }
+  li { margin: .2rem 0; }
+  li > pre { margin-top: .5rem; }
+  blockquote { margin: 0 0 1rem; padding: .2rem 1rem; border-left: 4px solid var(--line); color: var(--muted); }
+  hr { border: 0; border-top: 1px solid var(--line); margin: 2rem 0; }
+
+  code, pre {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+    font-size: .9em;
+  }
+  code { background: var(--code-bg); padding: .12em .35em; border-radius: 4px; }
+  pre {
+    position: relative;
+    background: var(--code-bg); border: 1px solid var(--line); border-radius: 8px;
+    padding: .9rem 1rem; margin: 0 0 1rem; overflow-x: auto; line-height: 1.5;
+  }
+  pre code { background: none; padding: 0; font-size: .88rem; }
+  pre .copy {
+    position: absolute; top: .45rem; right: .45rem;
+    font: inherit; font-size: .75rem; cursor: pointer;
+    border: 1px solid var(--line); border-radius: 5px; padding: .15rem .5rem;
+    background: var(--bg); color: var(--muted); opacity: 0; transition: opacity .15s;
+  }
+  pre:hover .copy, pre .copy:focus { opacity: 1; }
+
+  table { border-collapse: collapse; width: 100%; display: block; overflow-x: auto; font-size: .95rem; }
+  th, td { border: 1px solid var(--line); padding: .4rem .7rem; text-align: left; vertical-align: top; }
+  th { background: var(--code-bg); }
+
+  .toc { font-size: .9rem; color: var(--muted); margin: 0 0 2rem; padding: 0; list-style: none; columns: 2; column-gap: 2rem; }
+  .toc li { break-inside: avoid; }
+  .toc a { color: inherit; text-decoration: none; }
+  .toc a:hover { color: var(--accent); }
+  .status { color: var(--muted); font-size: .95rem; }
+  .note { color: var(--muted); font-size: .85rem; }
+
+  @media (max-width: 640px) {
+    body { font-size: 16px; }
+    .bar input { width: 8.5rem; }
+    .toc { columns: 1; }
+    pre .copy { opacity: 1; }
+  }
+</style>
+</head>
+<body>
+<div class="bar">
+  <form id="params" autocomplete="off">
+    <label>Package <input id="package_name" name="package_name" placeholder="MyPackage.jl" spellcheck="false"></label>
+    <label>Owner <input id="owner" name="owner" placeholder="GitHub user or org" spellcheck="false"></label>
+    <button type="submit" class="primary">Render</button>
+    <span class="spacer"></span>
+    <button type="button" id="copy-md" title="Copy the rendered guide as Markdown">Copy Markdown</button>
+    <a class="button" id="source-link" href="README.md">Markdown</a>
+    <a class="button" href="https://github.com/JuliaPackageFactory/Guidelines">GitHub</a>
+  </form>
+</div>
+
+<main id="content">
+  <p class="status">Loading the guide…</p>
+  <noscript>
+    <p>This page needs JavaScript to fill in the package name. The guide itself is plain Markdown:
+    <a href="README.md">README.md</a>. Replace <code>{{package_name}}</code>, <code>{{module_name}}</code>,
+    and <code>{{owner}}</code> with your values.</p>
+  </noscript>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/15.0.7/marked.min.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  var SOURCE = 'README.md';
+  var DEFAULTS = { package_name: 'MyPackage.jl', owner: 'owner' };
+  var SAFE = /^[A-Za-z0-9_.-]{1,64}$/;        // values are inserted into Markdown, so keep them plain
+  var RAW_OPEN = '<!-- raw -->', RAW_CLOSE = '<!-- /raw -->';
+
+  var content = document.getElementById('content');
+  var form = document.getElementById('params');
+  var inputs = { package_name: document.getElementById('package_name'), owner: document.getElementById('owner') };
+  var sourceText = null;
+  var lastMarkdown = '';
+
+  // ---- parameters -------------------------------------------------------
+  function readParams() {
+    var q = new URLSearchParams(location.search);
+    var p = {};
+    for (var k in DEFAULTS) {
+      var v = (q.get(k) || '').trim();
+      p[k] = SAFE.test(v) ? v : DEFAULTS[k];
+    }
+    var m = (q.get('module_name') || '').trim();
+    p.module_name = SAFE.test(m) ? m : p.package_name.replace(/\.jl$/, '');
+    return p;
+  }
+
+  function writeParams(p) {
+    var q = new URLSearchParams();
+    for (var k in DEFAULTS) if (p[k] !== DEFAULTS[k]) q.set(k, p[k]);
+    var qs = q.toString();
+    history.replaceState(null, '', location.pathname + (qs ? '?' + qs : '') + location.hash);
+  }
+
+  // ---- template engine --------------------------------------------------
+  function substitute(text, p) {
+    var out = '', i = 0;
+    while (i < text.length) {
+      var a = text.indexOf(RAW_OPEN, i);
+      if (a < 0) { out += fill(text.slice(i), p); break; }
+      var b = text.indexOf(RAW_CLOSE, a);
+      if (b < 0) b = text.length;
+      out += fill(text.slice(i, a), p) + text.slice(a + RAW_OPEN.length, b);
+      i = b + RAW_CLOSE.length;
+    }
+    return out;
+  }
+
+  function fill(text, p) {
+    return text.replace(/\{\{\s*([a-z_]+)\s*\}\}/g, function (m, name) {
+      return Object.prototype.hasOwnProperty.call(p, name) ? p[name] : m;
+    });
+  }
+
+  // ---- rendering --------------------------------------------------------
+  function slug(text) {
+    return text.toLowerCase().replace(/<[^>]+>/g, '').replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '-');
+  }
+
+  var renderer = new marked.Renderer();
+  renderer.heading = function (token) {
+    var text = this.parser.parseInline(token.tokens);
+    var id = slug(token.raw.replace(/^#+\s*/, ''));
+    return '<h' + token.depth + ' id="' + id + '"><a class="anchor" href="#' + id + '">' + text + '</a></h' + token.depth + '>\n';
+  };
+  marked.use({ gfm: true, renderer: renderer });
+
+  function render(p) {
+    var md = substitute(sourceText, p);
+    lastMarkdown = md;
+    content.innerHTML = marked.parse(md);
+    document.title = (p.package_name !== DEFAULTS.package_name ? p.package_name + ' · ' : '') + 'Julia Package Development Guide';
+    addToc();
+    addCopyButtons();
+    if (location.hash) {
+      var target = document.getElementById(location.hash.slice(1));
+      if (target) target.scrollIntoView();
+    }
+  }
+
+  function addToc() {
+    var h2s = content.querySelectorAll('h2');
+    if (h2s.length < 3) return;
+    var ul = document.createElement('ul');
+    ul.className = 'toc';
+    h2s.forEach(function (h) {
+      var li = document.createElement('li');
+      var a = document.createElement('a');
+      a.href = '#' + h.id;
+      a.textContent = h.textContent;
+      li.appendChild(a);
+      ul.appendChild(li);
+    });
+    var h1 = content.querySelector('h1');
+    var anchor = h1 ? h1.nextElementSibling : content.firstChild;  // after the title line
+    if (anchor && anchor.tagName === 'P') anchor = anchor.nextElementSibling;
+    content.insertBefore(ul, anchor);
+  }
+
+  function addCopyButtons() {
+    content.querySelectorAll('pre').forEach(function (pre) {
+      var btn = document.createElement('button');
+      btn.className = 'copy';
+      btn.type = 'button';
+      btn.textContent = 'Copy';
+      btn.addEventListener('click', function () {
+        copyText(pre.querySelector('code').textContent, btn);
+      });
+      pre.appendChild(btn);
+    });
+  }
+
+  function copyText(text, btn) {
+    var done = function () { var old = btn.textContent; btn.textContent = 'Copied'; setTimeout(function () { btn.textContent = old; }, 1200); };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, function () {});
+  }
+
+  // ---- wiring -----------------------------------------------------------
+  function apply(p) {
+    inputs.package_name.value = p.package_name === DEFAULTS.package_name ? '' : p.package_name;
+    inputs.owner.value = p.owner === DEFAULTS.owner ? '' : p.owner;
+    render(p);
+  }
+
+  form.addEventListener('submit', function (e) {
+    e.preventDefault();
+    var p = {
+      package_name: inputs.package_name.value.trim() || DEFAULTS.package_name,
+      owner: inputs.owner.value.trim() || DEFAULTS.owner
+    };
+    for (var k in DEFAULTS) if (!SAFE.test(p[k])) p[k] = DEFAULTS[k];
+    p.module_name = p.package_name.replace(/\.jl$/, '');
+    writeParams(p);
+    apply(p);
+  });
+
+  document.getElementById('copy-md').addEventListener('click', function () {
+    copyText(lastMarkdown, this);
+  });
+
+  window.addEventListener('popstate', function () { if (sourceText !== null) apply(readParams()); });
+
+  fetch(SOURCE, { cache: 'no-cache' })
+    .then(function (r) { if (!r.ok) throw new Error(r.status + ' ' + r.statusText); return r.text(); })
+    .then(function (text) { sourceText = text; apply(readParams()); })
+    .catch(function (err) {
+      content.innerHTML = '<p class="status">Could not load <a href="' + SOURCE + '">' + SOURCE + '</a> (' + err.message + '). ' +
+        'Open the Markdown file directly and substitute the placeholders yourself.</p>';
+    });
+})();
+</script>
+</body>
+</html>
